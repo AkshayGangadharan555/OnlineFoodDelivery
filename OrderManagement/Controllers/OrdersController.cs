@@ -80,8 +80,8 @@ public class OrdersController : ControllerBase
         return NoContent();
     }
 
-    // PUT: api/orders/{id}/status
-    [HttpPut("{id:guid}/status")]
+    // PATCH: api/orders/{id}/status
+    [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] string status, CancellationToken cancellationToken)
     {
         var order = await _context.Orders.FindAsync(new object[] { id }, cancellationToken);
@@ -89,6 +89,38 @@ public class OrdersController : ControllerBase
             return NotFound();
 
         order.Status = status;
+        _context.Orders.Update(order);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    // PATCH: api/orders/{id}/accept
+    [HttpPatch("{id:guid}/accept")]
+    public async Task<IActionResult> Accept(Guid id, [FromBody] Guid deliveryAgentId, CancellationToken cancellationToken)
+    {
+        var order = await _context.Orders.FindAsync(new object[] { id }, cancellationToken);
+        if (order == null)
+            return NotFound();
+
+        order.Status = "Accepted";
+        order.DeliveryManId = deliveryAgentId;
+        _context.Orders.Update(order);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    // PATCH: api/orders/{id}/reject
+    [HttpPatch("{id:guid}/reject")]
+    public async Task<IActionResult> Reject(Guid id, CancellationToken cancellationToken)
+    {
+        var order = await _context.Orders.FindAsync(new object[] { id }, cancellationToken);
+        if (order == null)
+            return NotFound();
+
+        order.Status = "Rejected";
+        order.DeliveryManId = null;
         _context.Orders.Update(order);
         await _context.SaveChangesAsync(cancellationToken);
 
