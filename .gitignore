@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# ignore zip files
+*.zip
+# ignore solution user file
+onlineFoodService.slnx
+# ignore duplicate folder
+/MenuItemsService/
