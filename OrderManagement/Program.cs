@@ -15,14 +15,9 @@ namespace Orders
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Configure Serilog
+            // Configure Serilog - Minimal Configuration
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Information()
-                .Enrich.FromLogContext()
-                .Enrich.WithEnvironmentUserName()
-                .Enrich.WithMachineName()
-                .Enrich.WithProcessId()
-                .Enrich.WithThreadId()
                 .WriteTo.Console()
                 .WriteTo.File(
                     path: "Logs/orders-.txt",
@@ -33,16 +28,13 @@ namespace Orders
 
             builder.Host.UseSerilog();
 
-            // Add services to the container.
             builder.Services.AddControllers(options =>
             {
                 options.Filters.Add<ExceptionHandlingFilter>();
                 options.Filters.Add<LoggingFilter>();
                 options.Filters.Add<ValidationFilter>();
-                options.Filters.Add<AuthorizationLoggingFilter>();
             });
 
-            // Configure Swagger/OpenAPI
             builder.Services.AddSwaggerGen(options =>
             {
                 options.SwaggerDoc("v1", new OpenApiInfo
@@ -62,7 +54,6 @@ namespace Orders
                     }
                 });
 
-                // Add JWT Bearer authentication to Swagger
                 options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Type = SecuritySchemeType.Http,
@@ -88,7 +79,6 @@ namespace Orders
                     }
                 });
 
-                // Include XML comments from controllers
                 var xmlFilename = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
                 var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
                 if (File.Exists(xmlPath))
@@ -101,27 +91,24 @@ namespace Orders
             builder.Services.AddDbContext<OrdersContext>(options =>
                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            // Register HttpClientFactory for external service calls
             builder.Services.AddHttpClient("ExternalApiClient")
-                .ConfigureHttpClient(client =>
-                {
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                });
+                .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));
 
-            // Add DI for services
+            // Register external service implementations for inter-server communication
+            builder.Services.AddScoped<IExternalProductService, ExternalProductService>();
+            builder.Services.AddScoped<IExternalRestaurantService, ExternalRestaurantService>();
+            builder.Services.AddScoped<IExternalDeliveryService, ExternalDeliveryService>();
+
             builder.Services.AddScoped<IOrderItemService, OrderItemService>();
             builder.Services.AddScoped<IOrderService, OrderService>();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             app.UseSwagger();
             app.UseSwaggerUI(options =>
             {
                 options.SwaggerEndpoint("/swagger/v1/swagger.json", "Order Management API V1");
                 options.RoutePrefix = "swagger";
-                options.DefaultModelsExpandDepth(2);
-                options.DefaultModelExpandDepth(2);
             });
 
             app.UseAuthorization();

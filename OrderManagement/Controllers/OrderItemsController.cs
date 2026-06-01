@@ -18,6 +18,9 @@ namespace Orders.Controllers
     {
         private readonly IOrderItemService _orderItemService;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IExternalProductService _externalProductService;
+        private readonly IExternalRestaurantService _externalRestaurantService;
+        private readonly IExternalDeliveryService _externalDeliveryService;
         private readonly ILogger<OrderItemsController> _logger;
 
         /// <summary>
@@ -25,14 +28,23 @@ namespace Orders.Controllers
         /// </summary>
         /// <param name="orderItemService">Service for order item operations</param>
         /// <param name="httpClientFactory">Factory for creating HTTP clients</param>
-        /// <param name="logger">Logger instance for this controller</param>
+        /// <param name="externalProductService">Service for product data from external API</param>
+        /// <param name="externalRestaurantService">Service for restaurant data from external API</param>
+        /// <param name="externalDeliveryService">Service for delivery data from external API</param>
+        /// <param name="logger">Logger for diagnostics</param>
         public OrderItemsController(
             IOrderItemService orderItemService,
             IHttpClientFactory httpClientFactory,
+            IExternalProductService externalProductService,
+            IExternalRestaurantService externalRestaurantService,
+            IExternalDeliveryService externalDeliveryService,
             ILogger<OrderItemsController> logger)
         {
             _orderItemService = orderItemService;
             _httpClientFactory = httpClientFactory;
+            _externalProductService = externalProductService;
+            _externalRestaurantService = externalRestaurantService;
+            _externalDeliveryService = externalDeliveryService;
             _logger = logger;
         }
 
@@ -51,19 +63,8 @@ namespace Orders.Controllers
         [ProducesResponseType(typeof(ApiResponse<OrderItemResponse>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<OrderItemResponse>>> GetItemById(Guid itemId, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Getting order item with ID: {ItemId}", itemId);
-
-            try
-            {
-                var items = await _orderItemService.GetItemsByOrderAsync(Guid.Empty, cancellationToken);
-                return Ok(items);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving order item");
-                return StatusCode(StatusCodes.Status500InternalServerError, 
-                    new ApiResponse<OrderItemResponse>(500, "Error retrieving item", null));
-            }
+            var items = await _orderItemService.GetItemsByOrderAsync(Guid.Empty, cancellationToken);
+            return Ok(items);
         }
 
         /// <summary>
@@ -85,8 +86,6 @@ namespace Orders.Controllers
             [FromQuery] Guid orderId,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Adding order item to order: {OrderId}", orderId);
-
             if (!ModelState.IsValid)
                 return BadRequest(new ApiResponse<OrderItems>(400, "Invalid request data", null));
 
@@ -97,6 +96,7 @@ namespace Orders.Controllers
 
             return StatusCode(result.Status, result);
         }
+
 
         /// <summary>
         /// Add multiple order items in bulk
@@ -115,36 +115,23 @@ namespace Orders.Controllers
             [FromBody] BulkCreateOrderItemsRequest request,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Adding {Count} items in bulk to order: {OrderId}", request.Items.Count, request.OrderId);
-
             if (!ModelState.IsValid || request.Items == null || request.Items.Count == 0)
                 return BadRequest(new ApiResponse<List<OrderItems>>(400, "Invalid request data or empty items list", null));
 
-            try
+            var addedItems = new List<OrderItems>();
+            foreach (var item in request.Items)
             {
-                var addedItems = new List<OrderItems>();
-
-                foreach (var item in request.Items)
-                {
-                    var result = await _orderItemService.AddItemAsync(item, request.OrderId, cancellationToken);
-                    if (result.Data != null)
-                        addedItems.Add(result.Data);
-                }
-
-                if (addedItems.Count == 0)
-                    return StatusCode(StatusCodes.Status500InternalServerError,
-                        new ApiResponse<List<OrderItems>>(500, "Failed to add items", null));
-
-                _logger.LogInformation("Successfully added {Count} items", addedItems.Count);
-                return CreatedAtAction(nameof(AddItem), 
-                    new ApiResponse<List<OrderItems>>(201, $"Successfully added {addedItems.Count} items", addedItems));
+                var result = await _orderItemService.AddItemAsync(item, request.OrderId, cancellationToken);
+                if (result.Data != null)
+                    addedItems.Add(result.Data);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in bulk adding items");
+
+            if (addedItems.Count == 0)
                 return StatusCode(StatusCodes.Status500InternalServerError,
-                    new ApiResponse<List<OrderItems>>(500, "Error adding items in bulk", null));
-            }
+                    new ApiResponse<List<OrderItems>>(500, "Failed to add items", null));
+
+            return CreatedAtAction(nameof(AddItem), 
+                new ApiResponse<List<OrderItems>>(201, "Items added successfully", addedItems));
         }
 
         /// <summary>
@@ -155,17 +142,13 @@ namespace Orders.Controllers
         /// <returns>List of OrderItemResponse objects for the order</returns>
         /// <response code="200">Returns the list of order items</response>
         /// <response code="404">Order not found</response>
-        /// <response code="500">Internal server error</response>
         [HttpGet("order/{orderId}")]
         [ProducesResponseType(typeof(ApiResponse<List<OrderItemResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<OrderItemResponse>>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<List<OrderItemResponse>>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<List<OrderItemResponse>>>> GetItemsByOrder(
             Guid orderId,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Getting items for order: {OrderId}", orderId);
-
             var result = await _orderItemService.GetItemsByOrderAsync(orderId, cancellationToken);
             return Ok(result);
         }
@@ -181,20 +164,16 @@ namespace Orders.Controllers
         /// <response code="400">Invalid request data</response>
         /// <response code="404">Order item not found</response>
         /// <response code="409">Concurrency conflict detected</response>
-        /// <response code="500">Internal server error</response>
         [HttpPut("{itemId}")]
         [ProducesResponseType(typeof(ApiResponse<OrderItems>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<OrderItems>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<OrderItems>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<OrderItems>), StatusCodes.Status409Conflict)]
-        [ProducesResponseType(typeof(ApiResponse<OrderItems>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<OrderItems>>> UpdateItem(
             Guid itemId,
             [FromBody] UpdateOrderItemRequest request,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Updating order item: {ItemId}", itemId);
-
             if (!ModelState.IsValid)
                 return BadRequest(new ApiResponse<OrderItems>(400, "Invalid request data", null));
 
@@ -214,17 +193,13 @@ namespace Orders.Controllers
         /// <returns>Boolean indicating success of deletion</returns>
         /// <response code="200">Item deleted successfully</response>
         /// <response code="404">Order item not found</response>
-        /// <response code="500">Internal server error</response>
         [HttpDelete("{itemId}")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<bool>>> DeleteItem(
             Guid itemId,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Deleting order item: {ItemId}", itemId);
-
             var result = await _orderItemService.DeleteItemAsync(itemId, cancellationToken);
 
             if (result.Status == 404)
@@ -242,50 +217,279 @@ namespace Orders.Controllers
         /// <response code="200">Product validation check completed</response>
         /// <response code="400">Product validation failed</response>
         /// <response code="503">External service unavailable</response>
-        /// <response code="500">Internal server error</response>
         [HttpPost("validate-product")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status503ServiceUnavailable)]
-        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<bool>>> ValidateProductWithExternalService(
             [FromBody] ValidateProductRequest request,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Validating product: {ProductId}", request.ProductId);
+            var httpClient = _httpClientFactory.CreateClient("ExternalApiClient");
 
+            var response = await httpClient.PostAsJsonAsync(
+                $"/api/products/{request.ProductId}/validate",
+                request,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return Ok(new ApiResponse<bool>(200, "Product validation successful", true));
+
+            return StatusCode(StatusCodes.Status400BadRequest,
+                new ApiResponse<bool>(400, "Product validation failed", false));
+        }
+
+        /// <summary>
+        /// Get product details from external Product service
+        /// Demonstrates inter-server communication to fetch product data
+        /// </summary>
+        /// <param name="productId">The product ID to fetch from external service</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Product details from external service</returns>
+        /// <response code="200">Product details retrieved successfully</response>
+        /// <response code="404">Product not found in external service</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpGet("product/{productId}/external")]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductDto>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductDto>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<ExternalProductDto>>> GetProductFromExternalService(
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
             try
             {
-                var httpClient = _httpClientFactory.CreateClient("ExternalApiClient");
+                _logger.LogInformation("Fetching product from external service. ProductId: {ProductId}", productId);
 
-                var response = await httpClient.PostAsJsonAsync(
-                    $"/api/products/{request.ProductId}/validate",
-                    request,
-                    cancellationToken);
+                // Call external product service to get product details
+                var product = await _externalProductService.GetProductDetailsAsync(productId, cancellationToken);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Product validation successful for: {ProductId}", request.ProductId);
-                    return Ok(new ApiResponse<bool>(200, "Product validation successful", true));
-                }
-                else
-                {
-                    _logger.LogWarning("Product validation failed for: {ProductId}", request.ProductId);
-                    return StatusCode(StatusCodes.Status400BadRequest,
-                        new ApiResponse<bool>(400, "Product validation failed", false));
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Error calling external service");
-                return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                    new ApiResponse<bool>(503, "External service unavailable", false));
+                if (product == null)
+                    return NotFound(new ApiResponse<ExternalProductDto>(404, "Product not found in external service", null));
+
+                return Ok(new ApiResponse<ExternalProductDto>(200, "Product retrieved successfully", product));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error validating product");
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    new ApiResponse<bool>(500, "Error validating product", false));
+                _logger.LogError(ex, "Error fetching product from external service");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<ExternalProductDto>(503, "External service unavailable", null));
+            }
+        }
+
+        /// <summary>
+        /// Validate product availability from external service
+        /// </summary>
+        /// <param name="productId">Product ID</param>
+        /// <param name="quantity">Quantity to validate</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Availability status</returns>
+        /// <response code="200">Availability check completed</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpPost("product/{productId}/availability")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<bool>>> CheckProductAvailability(
+            Guid productId,
+            [FromQuery] int quantity,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Checking product availability. ProductId: {ProductId}, Quantity: {Quantity}",
+                    productId, quantity);
+
+                // Call external service to validate availability
+                var isAvailable = await _externalProductService.ValidateProductAvailabilityAsync(
+                    productId, quantity, cancellationToken);
+
+                return Ok(new ApiResponse<bool>(200, "Availability check completed", isAvailable));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking product availability");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<bool>(503, "External service unavailable", false));
+            }
+        }
+
+        /// <summary>
+        /// Get product pricing from external service
+        /// </summary>
+        /// <param name="productId">Product ID</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Pricing information</returns>
+        /// <response code="200">Pricing retrieved successfully</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpGet("product/{productId}/pricing")]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductPricingDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductPricingDto>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<ExternalProductPricingDto>>> GetProductPricing(
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation("Fetching product pricing. ProductId: {ProductId}", productId);
+
+                // Call external service to get pricing
+                var pricing = await _externalProductService.GetProductPricingAsync(productId, cancellationToken);
+
+                if (pricing == null)
+                    return NotFound(new ApiResponse<ExternalProductPricingDto>(404, "Pricing not found", null));
+
+                return Ok(new ApiResponse<ExternalProductPricingDto>(200, "Pricing retrieved successfully", pricing));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching product pricing");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<ExternalProductPricingDto>(503, "External service unavailable", null));
+            }
+        }
+
+        /// <summary>
+        /// Get product stock from external service
+        /// </summary>
+        /// <param name="productId">Product ID</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Stock information</returns>
+        /// <response code="200">Stock information retrieved successfully</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpGet("product/{productId}/stock")]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductStockDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ExternalProductStockDto>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<ExternalProductStockDto>>> GetProductStock(
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation("Fetching product stock. ProductId: {ProductId}", productId);
+
+                // Call external service to get stock
+                var stock = await _externalProductService.GetProductStockAsync(productId, cancellationToken);
+
+                if (stock == null)
+                    return NotFound(new ApiResponse<ExternalProductStockDto>(404, "Stock information not found", null));
+
+                return Ok(new ApiResponse<ExternalProductStockDto>(200, "Stock retrieved successfully", stock));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching product stock");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<ExternalProductStockDto>(503, "External service unavailable", null));
+            }
+        }
+
+        /// <summary>
+        /// Get restaurant details from external service
+        /// </summary>
+        /// <param name="restaurantId">Restaurant ID</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Restaurant details</returns>
+        /// <response code="200">Restaurant details retrieved successfully</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpGet("restaurant/{restaurantId}/details")]
+        [ProducesResponseType(typeof(ApiResponse<ExternalRestaurantDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ExternalRestaurantDto>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<ExternalRestaurantDto>>> GetRestaurantDetails(
+            Guid restaurantId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation("Fetching restaurant details. RestaurantId: {RestaurantId}", restaurantId);
+
+                // Call external service to get restaurant details
+                var restaurant = await _externalRestaurantService.GetRestaurantDetailsAsync(restaurantId, cancellationToken);
+
+                if (restaurant == null)
+                    return NotFound(new ApiResponse<ExternalRestaurantDto>(404, "Restaurant not found", null));
+
+                return Ok(new ApiResponse<ExternalRestaurantDto>(200, "Restaurant details retrieved successfully", restaurant));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching restaurant details");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<ExternalRestaurantDto>(503, "External service unavailable", null));
+            }
+        }
+
+        /// <summary>
+        /// Get estimated delivery time from external service
+        /// </summary>
+        /// <param name="restaurantId">Restaurant ID</param>
+        /// <param name="deliveryAddressId">Delivery address ID</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Estimated delivery time in minutes</returns>
+        /// <response code="200">Delivery time calculated successfully</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpGet("delivery/estimated-time")]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<int>>> GetEstimatedDeliveryTime(
+            [FromQuery] Guid restaurantId,
+            [FromQuery] Guid deliveryAddressId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Calculating estimated delivery time. RestaurantId: {RestaurantId}, AddressId: {AddressId}",
+                    restaurantId, deliveryAddressId);
+
+                // Call external delivery service
+                var estimatedMinutes = await _externalDeliveryService.GetEstimatedDeliveryTimeAsync(
+                    restaurantId, deliveryAddressId, cancellationToken);
+
+                return Ok(new ApiResponse<int>(200, "Delivery time calculated successfully", estimatedMinutes));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating delivery time");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<int>(503, "External service unavailable", 0));
+            }
+        }
+
+        /// <summary>
+        /// Check delivery availability from external service
+        /// </summary>
+        /// <param name="restaurantId">Restaurant ID</param>
+        /// <param name="deliveryAddressId">Delivery address ID</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Delivery availability status</returns>
+        /// <response code="200">Availability check completed</response>
+        /// <response code="503">External service unavailable</response>
+        [HttpPost("delivery/availability")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status503ServiceUnavailable)]
+        public async Task<ActionResult<ApiResponse<bool>>> CheckDeliveryAvailability(
+            [FromQuery] Guid restaurantId,
+            [FromQuery] Guid deliveryAddressId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Checking delivery availability. RestaurantId: {RestaurantId}, AddressId: {AddressId}",
+                    restaurantId, deliveryAddressId);
+
+                // Call external delivery service
+                var available = await _externalDeliveryService.IsDeliveryAvailableAsync(
+                    restaurantId, deliveryAddressId, cancellationToken);
+
+                return Ok(new ApiResponse<bool>(200, "Availability check completed", available));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking delivery availability");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ApiResponse<bool>(503, "External service unavailable", false));
             }
         }
     }

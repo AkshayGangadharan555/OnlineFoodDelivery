@@ -4,8 +4,7 @@ using System.Diagnostics;
 namespace Orders.Filters
 {
     /// <summary>
-    /// Logging filter that logs incoming HTTP requests and outgoing responses.
-    /// Includes request/response timing for performance monitoring.
+    /// Lightweight logging filter for request/response timing and basic logging.
     /// </summary>
     public class LoggingFilter : IActionFilter
     {
@@ -20,54 +19,20 @@ namespace Orders.Filters
         public void OnActionExecuting(ActionExecutingContext context)
         {
             _stopwatch = Stopwatch.StartNew();
-
-            var request = context.HttpContext.Request;
-            var userIdentity = context.HttpContext.User?.Identity?.Name ?? "Anonymous";
-
-            _logger.LogInformation(
-                "Incoming Request: {Method} {Path} | User: {User} | Query: {QueryString}",
-                request.Method,
-                request.Path,
-                userIdentity,
-                request.QueryString
-            );
-
-            if (context.ActionArguments.Count > 0)
-            {
-                _logger.LogDebug("Request Arguments: {@Arguments}",
-                    context.ActionArguments.Where(x => !IsPasswordField(x.Key))
-                );
-            }
         }
 
         public void OnActionExecuted(ActionExecutedContext context)
         {
             _stopwatch.Stop();
+            var statusCode = context.HttpContext.Response.StatusCode;
+            var method = context.HttpContext.Request.Method;
+            var path = context.HttpContext.Request.Path;
+            var duration = _stopwatch.ElapsedMilliseconds;
 
-            var response = context.HttpContext.Response;
-            var userIdentity = context.HttpContext.User?.Identity?.Name ?? "Anonymous";
-
-            _logger.LogInformation(
-                "Outgoing Response: {StatusCode} | User: {User} | Duration: {DurationMs}ms",
-                response.StatusCode,
-                userIdentity,
-                _stopwatch.ElapsedMilliseconds
-            );
-
-            if (context.Exception != null && !context.ExceptionHandled)
+            if (statusCode >= 400)
             {
-                _logger.LogError(context.Exception,
-                    "Exception during action execution: {ExceptionMessage}",
-                    context.Exception.Message
-                );
+                _logger.LogWarning("{Method} {Path} - {StatusCode} ({DurationMs}ms)", method, path, statusCode, duration);
             }
-        }
-
-        private bool IsPasswordField(string fieldName)
-        {
-            return fieldName.Contains("password", StringComparison.OrdinalIgnoreCase) ||
-                   fieldName.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
-                   fieldName.Contains("token", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
