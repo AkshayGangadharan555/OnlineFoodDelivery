@@ -8,7 +8,7 @@ namespace Orders.Models
         [Key]
         [Required]
         [Column(TypeName = "uniqueidentifier")]
-        public Guid OrderItemId { get; set; } = Guid.NewGuid();
+        public Guid OrderItemId { get; set; }
 
         [Required]
         [Column(TypeName = "uniqueidentifier")]
@@ -20,7 +20,7 @@ namespace Orders.Models
 
         [Required]
         [Column(TypeName = "uniqueidentifier")]
-        public Guid RestuarantId { get; set; }
+        public Guid RestaurantId { get; set; }
 
         [Required]
         [Column(TypeName = "int")]
@@ -50,9 +50,18 @@ namespace Orders.Models
 
         [Required]
         [Column(TypeName = "dateTime2")]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } 
 
         [Column(TypeName = "dateTime2")]
-        public DateTime LastUpdatedAt { get; set;} = DateTime.UtcNow;
+        public DateTime LastUpdatedAt { get; set;}
+
+        [Column(TypeName = "nvarchar(255)")]
+        public string CreatedBy { get; set; }
+
+        // Concurrency token
+        [Timestamp]
+        public byte[] RowVersion { get; set; }
+
+        public Order Order { get; set; }
     }
 }
