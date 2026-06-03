@@ -22,30 +22,38 @@ BEGIN
            OrderId,
            CustomerId,
            RestaurantId,
+           DeliveryManId,
+           CancelReason,
+           StatusRemarks,
+           OrderDate,
+           Status,
+           TotalAmount,
            PaymentAddressId,
            DeliveryAddressId,
-           DeliveryAgentId,
-           TotalAmount,
-           Status,
-           StatusRemarks,
-           CancellationReason,
-           OrderDate,
-           CreatedAt
+           ExpectedDeliveryTime,
+           ActualDeliveryTime,
+           CreatedAt,
+           UpdatedAt,
+           CreatedBy
        )
        VALUES
        (
            @OrderId,
            @CustomerId,
            @RestaurantId,
-           @PaymentAddressId,
-           @DeliveryAddressId,
            NULL,
-           @TotalAmount,
-           'Pending',
            NULL,
            NULL,
            GETUTCDATE(),
-           GETUTCDATE()
+           'Pending',
+           @TotalAmount,
+           @PaymentAddressId,
+           @DeliveryAddressId,
+           NULL,
+           NULL,
+           GETUTCDATE(),
+           GETUTCDATE(),
+           'System'
        );
 
        COMMIT TRANSACTION;

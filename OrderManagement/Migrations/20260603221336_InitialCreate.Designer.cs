@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Orders.Models;
 using Orders.Data;
 
 #nullable disable
@@ -13,8 +12,8 @@ using Orders.Data;
 namespace Orders.Migrations
 {
     [DbContext(typeof(OrderDbContext))]
-    [Migration("20260531093220_sixth")]
-    partial class sixth
+    [Migration("20260603221336_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -35,8 +34,16 @@ namespace Orders.Migrations
                     b.Property<DateTime?>("ActualDeliveryTime")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("dateTime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
@@ -67,6 +74,12 @@ namespace Orders.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<string>("StatusRemarks")
+                        .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<decimal>("TotalAmount")
@@ -79,11 +92,15 @@ namespace Orders.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("DeliveryManId");
+
+                    b.HasIndex("RestaurantId");
+
                     b.HasIndex("Status");
 
                     b.ToTable("Orders", t =>
                         {
-                            t.HasCheckConstraint("CK_Orders_Status", "[Status] IN ('Pending','Confirmed','Preparing','Ready','Assigned','PickUp','Delivered','Cancelled')");
+                            t.HasCheckConstraint("CK_Order_Status", "Status IN ('Pending','Confirmed','Preparing','Ready','Assigned','PickedUp','Delivered','Cancelled')");
                         });
                 });
 
@@ -95,6 +112,10 @@ namespace Orders.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("dateTime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<decimal?>("Discount")
                         .IsRequired()
@@ -115,7 +136,7 @@ namespace Orders.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("RestuarantId")
+                    b.Property<Guid>("RestaurantId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<byte[]>("RowVersion")
@@ -129,7 +150,9 @@ namespace Orders.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("nvarchar(50)");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Pending");
 
                     b.Property<decimal?>("TaxAmount")
                         .HasColumnType("decimal(18,2)");
@@ -141,11 +164,9 @@ namespace Orders.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.HasIndex("Status");
-
                     b.ToTable("OrderItems", t =>
                         {
-                            t.HasCheckConstraint("CK_OrderItem_Status", "[Status] IN ('Pending','Preparing','Ready','Cancelled')");
+                            t.HasCheckConstraint("CK_OrderItem_Status", "Status IN ('Pending','Preparing','Ready','Cancelled')");
                         });
                 });
 

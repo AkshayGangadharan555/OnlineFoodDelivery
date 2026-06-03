@@ -3,7 +3,7 @@ CREATE PROCEDURE sp_UpdateOrderStatus
    @OrderId UNIQUEIDENTIFIER,
    @Status NVARCHAR(50),
    @Remarks NVARCHAR(500) = NULL,
-   @DeliveryAgentId UNIQUEIDENTIFIER = NULL,
+   @DeliveryManId UNIQUEIDENTIFIER = NULL,
    @RowVersion VARBINARY(8)
 )
 AS
@@ -20,12 +20,12 @@ BEGIN
            StatusRemarks =
                @Remarks,
 
-           DeliveryAgentId =
+           DeliveryManId =
                CASE
-                   WHEN @DeliveryAgentId
+                   WHEN @DeliveryManId
                    IS NOT NULL
-                   THEN @DeliveryAgentId
-                   ELSE DeliveryAgentId
+                   THEN @DeliveryManId
+                   ELSE DeliveryManId
                END,
 
            UpdatedAt =

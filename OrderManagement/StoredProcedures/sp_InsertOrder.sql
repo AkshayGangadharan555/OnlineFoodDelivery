@@ -18,12 +18,13 @@ BEGIN
            RestaurantId,
            Quantity,
            UnitPrice,
-           TaxAmount,
            Discount,
-           SubTotal,
+           TaxAmount,
            SpecialInstructions,
            Status,
-           CreatedAt
+           CreatedAt,
+           LastUpdatedAt,
+           CreatedBy
        )
        SELECT
            NEWID(),
@@ -32,12 +33,13 @@ BEGIN
            RestaurantId,
            Quantity,
            UnitPrice,
-           TaxAmount,
            Discount,
-           SubTotal,
+           TaxAmount,
            SpecialInstructions,
            'Pending',
-           GETUTCDATE()
+           GETUTCDATE(),
+           GETUTCDATE(),
+           'System'
        FROM @Items;
 
        COMMIT TRANSACTION;
