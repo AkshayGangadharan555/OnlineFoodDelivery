@@ -6,12 +6,13 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Orders.Models;
+using Orders.Data;
 
 #nullable disable
 
 namespace Orders.Migrations
 {
-    [DbContext(typeof(OrdersContext))]
+    [DbContext(typeof(OrderDbContext))]
     [Migration("20260519100049_first")]
     partial class first
     {
@@ -25,7 +26,7 @@ namespace Orders.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Orders.Models.Orders", b =>
+            modelBuilder.Entity("Orders.Models.Order", b =>
                 {
                     b.Property<Guid>("OrderId")
                         .ValueGeneratedOnAdd()

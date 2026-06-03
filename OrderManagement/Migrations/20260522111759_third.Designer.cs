@@ -6,12 +6,13 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Orders.Models;
+using Orders.Data;
 
 #nullable disable
 
 namespace Orders.Migrations
 {
-    [DbContext(typeof(OrdersContext))]
+    [DbContext(typeof(OrderDbContext))]
     [Migration("20260522111759_third")]
     partial class third
     {
@@ -77,7 +78,7 @@ namespace Orders.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Orders.Models.Orders", b =>
+            modelBuilder.Entity("Orders.Models.Order", b =>
                 {
                     b.Property<Guid>("OrderId")
                         .ValueGeneratedOnAdd()

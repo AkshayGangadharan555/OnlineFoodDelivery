@@ -19,6 +19,12 @@ namespace Orders.Models
         [Column(TypeName = "uniqueidentifier")]
         public Guid? DeliveryManId { get; set; }
 
+        [MaxLength(50)]
+        public string? CancelReason { get; set; }
+
+        [MaxLength(50)]
+        public string? StatusRemarks { get; set; }
+
         [Required]
         [Column(TypeName = "datetime2")]
         public DateTime OrderDate { get; set; }

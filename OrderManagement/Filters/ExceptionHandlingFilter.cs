@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Orders.DTOs.ResponseDTOs;
+using Orders.DTOs.Response;
 
 namespace Orders.Filters
 {
     /// <summary>
-    /// Global exception handling filter that catches unhandled exceptions
-    /// and returns standardized error responses.
+    /// Global exception handling filter for unhandled exceptions.
     /// </summary>
     public class ExceptionHandlingFilter : IExceptionFilter
     {
@@ -19,12 +18,12 @@ namespace Orders.Filters
 
         public void OnException(ExceptionContext context)
         {
-            _logger.LogError(context.Exception, "Unhandled exception occurred in {ActionName}. Exception: {ExceptionMessage}",
-                context.ActionDescriptor.DisplayName, context.Exception.Message);
+            _logger.LogError(context.Exception, "Unhandled exception in {Action}",
+                context.ActionDescriptor.DisplayName);
 
             var response = new ApiResponse<object>(
                 status: StatusCodes.Status500InternalServerError,
-                message: "An internal server error occurred. Please try again later.",
+                message: "An internal server error occurred.",
                 data: null
             );
 

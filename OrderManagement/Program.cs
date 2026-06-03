@@ -1,133 +1,46 @@
-using Microsoft.EntityFrameworkCore;
-using Orders.Models;
-using Orders.Authentication;
+using Orders.Extensions;
 using Orders.Filters;
-using Orders.Services.Interfaces;
-using Orders.Services.Implementations;
 using Serilog;
-using Microsoft.OpenApi.Models;
 
-namespace Orders
+internal class Program
 {
-    public class Program
+    private static void Main(string[] args)
     {
-        public static void Main(string[] args)
+        var builder = WebApplication.CreateBuilder(args);
+        var configuration = builder.Configuration;
+
+        builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+        );
+
+        // Controllers
+        builder.Services.AddControllers(options =>
         {
-            var builder = WebApplication.CreateBuilder(args);
+            options.Filters.Add<ValidationFilter>();
+            options.Filters.Add<LoggingFilter>();
+            options.Filters.Add<ExceptionHandlingFilter>();
+        });
 
-            // Configure Serilog
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .Enrich.FromLogContext()
-                .Enrich.WithEnvironmentUserName()
-                .Enrich.WithMachineName()
-                .Enrich.WithProcessId()
-                .Enrich.WithThreadId()
-                .WriteTo.Console()
-                .WriteTo.File(
-                    path: "Logs/orders-.txt",
-                    rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 30,
-                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
-                .CreateLogger();
+        // Register services via extension methods (DB, JWT, Swagger)
+        builder.Services.AddCustomDbContext(configuration);
+        builder.Services.AddCustomJwt(configuration);
+        builder.Services.AddCustomSwagger();
+        builder.Services.AddApplicationServices(configuration);
 
-            builder.Host.UseSerilog();
+        var app = builder.Build();
 
-            // Add services to the container.
-            builder.Services.AddControllers(options =>
-            {
-                options.Filters.Add<ExceptionHandlingFilter>();
-                options.Filters.Add<LoggingFilter>();
-                options.Filters.Add<ValidationFilter>();
-                options.Filters.Add<AuthorizationLoggingFilter>();
-            });
+        // Use middleware
+        app.UseSerilogRequestLogging();
 
-            // Configure Swagger/OpenAPI
-            builder.Services.AddSwaggerGen(options =>
-            {
-                options.SwaggerDoc("v1", new OpenApiInfo
-                {
-                    Title = "Order Management API",
-                    Version = "v1",
-                    Description = "API for managing orders and order items in the Online Food Delivery system",
-                    Contact = new OpenApiContact
-                    {
-                        Name = "Order Management Team",
-                        Email = "orders@onlinefooddelivery.com"
-                    },
-                    License = new OpenApiLicense
-                    {
-                        Name = "MIT",
-                        Url = new Uri("https://opensource.org/licenses/MIT")
-                    }
-                });
+        app.UseSwagger();
+        app.UseSwaggerUI();
 
-                // Add JWT Bearer authentication to Swagger
-                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-                {
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT",
-                    Description = "JWT Authorization header using the Bearer scheme",
-                    In = ParameterLocation.Header,
-                    Name = "Authorization"
-                });
+        app.UseCustomMiddleware();
 
-                options.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        new string[] { }
-                    }
-                });
+        app.MapControllers();
 
-                // Include XML comments from controllers
-                var xmlFilename = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
-                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
-                if (File.Exists(xmlPath))
-                {
-                    options.IncludeXmlComments(xmlPath);
-                }
-            });
-
-            builder.Services.AddJwtAuthentication(builder.Configuration);
-            builder.Services.AddDbContext<OrdersContext>(options =>
-               options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-            // Register HttpClientFactory for external service calls
-            builder.Services.AddHttpClient("ExternalApiClient")
-                .ConfigureHttpClient(client =>
-                {
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                });
-
-            // Add DI for services
-            builder.Services.AddScoped<IOrderItemService, OrderItemService>();
-            builder.Services.AddScoped<IOrderService, OrderService>();
-
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            app.UseSwagger();
-            app.UseSwaggerUI(options =>
-            {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "Order Management API V1");
-                options.RoutePrefix = "swagger";
-                options.DefaultModelsExpandDepth(2);
-                options.DefaultModelExpandDepth(2);
-            });
-
-            app.UseAuthorization();
-            app.MapControllers();
-
-            app.Run();
-        }
+        app.Run();
     }
 }
