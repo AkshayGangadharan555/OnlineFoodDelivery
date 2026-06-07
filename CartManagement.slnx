@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="../12-5-2026/CustomerService/CustomerService.csproj" />
-  <Project Path="CartService/CartService.csproj" />
-  <Project Path="MenuItems/MenuItems.csproj" />
-  <Project Path="PaymentService/PaymentService.csproj" />
-</Solution>
