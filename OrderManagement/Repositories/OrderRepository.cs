@@ -27,14 +27,13 @@ namespace Orders.Repositories
         }
 
         // CREATE ORDER
-        public async Task<OrderResponseDto> CreateOrderAsync(PlaceOrderRequestDto request)
+               public async Task<OrderResponseDto> CreateOrderAsync(PlaceOrderRequestDto request)
         {
             using var connection = GetConnection();
             await connection.OpenAsync();
             using var transaction = connection.BeginTransaction();
             try
             {
-                // Create order using stored procedure
                 var orderId = await connection.QuerySingleAsync<Guid>(
                     "sp_CreateOrder",
                     new
@@ -49,20 +48,39 @@ namespace Orders.Repositories
                     commandType: CommandType.StoredProcedure
                 );
 
-                // Prepare order items for bulk insertion
-                var orderItems = request.Items.Select(item => new
-                {
-                    OrderId = orderId,
-                    item.ProductId,
-                    RestaurantId = request.RestaurantId,
-                    item.Quantity,
-                    item.SpecialInstructions
-                }).ToList();
+                var orderItemsTable = new DataTable();
+                orderItemsTable.Columns.Add("ProductId", typeof(Guid));
+                orderItemsTable.Columns.Add("RestaurantId", typeof(Guid));
+                orderItemsTable.Columns.Add("Quantity", typeof(int));
+                orderItemsTable.Columns.Add("UnitPrice", typeof(decimal));
+                orderItemsTable.Columns.Add("TaxAmount", typeof(decimal));
+                orderItemsTable.Columns.Add("Discount", typeof(decimal));
+                orderItemsTable.Columns.Add("SpecialInstructions", typeof(string));
 
-                // Bulk insert order items using stored procedure
+                foreach (var item in request.Items)
+                {
+                    decimal unitPrice = 0.00m;
+                    decimal taxAmount = 0.00m;
+                    decimal discount = 0.00m;
+
+                    orderItemsTable.Rows.Add(
+                        item.ProductId,
+                        request.RestaurantId,
+                        item.Quantity,
+                        unitPrice,
+                        taxAmount,
+                        discount,
+                        (object)item.SpecialInstructions ?? DBNull.Value
+                    );
+                }
+
                 await connection.ExecuteAsync(
                     "sp_InsertOrderItems",
-                    new { OrderId = orderId, Items = orderItems.AsTableValuedParameter("OrderItemTableType") },
+                    new
+                    {
+                        OrderId = orderId,
+                        Items = orderItemsTable.AsTableValuedParameter("OrderItemTableType")
+                    },
                     transaction: transaction,
                     commandType: CommandType.StoredProcedure
                 );
@@ -83,7 +101,7 @@ namespace Orders.Repositories
                 throw;
             }
         }
-
+        
         // GET ORDER
         public async Task<OrderResponseDto?>GetOrderByIdAsync(Guid orderId,Guid customerId)
         {
