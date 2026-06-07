@@ -3,7 +3,7 @@ CREATE TYPE OrderItemTableType AS TABLE
    ProductId UNIQUEIDENTIFIER NOT NULL,
    RestaurantId UNIQUEIDENTIFIER NOT NULL,
    Quantity INT NOT NULL,
-	  UnitPrice DECIMAL(18,2) NOT NULL,
+   UnitPrice DECIMAL(18,2) NOT NULL,
    TaxAmount DECIMAL(18,2) NULL,
    Discount DECIMAL(18,2) NULL,
    SpecialInstructions NVARCHAR(500) NULL
