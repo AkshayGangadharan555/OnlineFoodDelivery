@@ -35,8 +35,8 @@ namespace Orders.Controllers
             return Ok(result);
         }
 
-        [HttpPatch("accept")]
-        public async Task<IActionResult> AcceptDelivery(AssignDeliveryRequestDto request)
+        [HttpPatch("accept/{orderId}")]
+        public async Task<IActionResult> AcceptDelivery(Guid orderId, AssignDeliveryRequestDto request)
         {
             var result =await _service.AcceptDeliveryAsync(request);
 
@@ -47,8 +47,8 @@ namespace Orders.Controllers
                 "Delivery accepted");
         }
 
-        [HttpPatch("pickup")]
-        public async Task<IActionResult>PickupOrder(UpdateOrderStatusRequestDto request)
+        [HttpPatch("pickup/{orderId}")]
+        public async Task<IActionResult>PickupOrder(Guid orderId, UpdateOrderStatusRequestDto request)
         {
             var deliveryAgentId =Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var result =await _service.PickupOrderAsync(request,deliveryAgentId);
@@ -59,8 +59,8 @@ namespace Orders.Controllers
             return Ok("Order picked");
         }
 
-        [HttpPatch("deliver")]
-        public async Task<IActionResult>DeliverOrder(UpdateOrderStatusRequestDto request)
+        [HttpPatch("deliver/{orderId}")]
+        public async Task<IActionResult>DeliverOrder(Guid orderId, UpdateOrderStatusRequestDto request)
         {
             var deliveryAgentId =Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var result =await _service.DeliverOrderAsync(request,deliveryAgentId);

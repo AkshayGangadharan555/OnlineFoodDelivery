@@ -9,6 +9,8 @@ namespace Orders.Data
         public OrderDbContext(DbContextOptions<OrderDbContext> options): base(options){}
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItems> OrderItems { get; set; }
+        public DbSet<Cart> Carts { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -74,6 +76,21 @@ namespace Orders.Data
             modelBuilder
                 .Entity<OrderItems>()
                 .Property(oi => oi.Status).HasDefaultValue(OrderItemStatuses.Pending);
+
+            modelBuilder
+                .Entity<Cart>()
+                .HasMany(c => c.Items)
+                .WithOne(ci => ci.Cart)
+                .HasForeignKey(ci => ci.CartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder
+                .Entity<Cart>()
+                .HasIndex(c => c.CustomerId);
+
+            modelBuilder
+                .Entity<Cart>()
+                .HasIndex(c => c.RestaurantId);
         }
     }
 }

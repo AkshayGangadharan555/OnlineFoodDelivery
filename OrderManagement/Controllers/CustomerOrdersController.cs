@@ -48,8 +48,8 @@ namespace Orders.Controllers
             return Ok(result);
         }
 
-        [HttpPatch("cancel")]
-        public async Task<IActionResult>CancelOrder(CancelOrderRequestDto request)
+        [HttpPatch("cancel/{orderId}")]
+        public async Task<IActionResult>CancelOrder(Guid orderId, CancelOrderRequestDto request)
         {
             var userId =User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))

@@ -61,6 +61,9 @@ namespace Orders.Extensions
             services.AddScoped<Services.Interfaces.ICustomerOrderService, Services.CustomerOrderService>();
             services.AddScoped<Services.Interfaces.IDeliveryOrderService, Services.DeliveryOrderService>();
             services.AddScoped<Services.Interfaces.IRestaurantOrderService, Services.RestaurantOrderService>();
+            services.AddScoped<Repositories.Interfaces.ICartRepository, Repositories.CartRepository>();
+            services.AddScoped<Services.Interfaces.ICartService, Services.CartService>();
+            services.AddScoped<Services.Interfaces.IAuthService, Services.AuthService>();
 
             // Configure HttpClients for inter-service communication
             var urlsSection = configuration.GetSection("ServiceUrls");

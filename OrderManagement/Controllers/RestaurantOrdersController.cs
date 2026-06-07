@@ -40,8 +40,8 @@ namespace Orders.Controllers
             return Ok("Order accepted");
         }
 
-        [HttpPatch("update-status")]
-        public async Task<IActionResult>UpdateStatus(UpdateOrderStatusRequestDto request)
+        [HttpPatch("update-status/{orderId}")]
+        public async Task<IActionResult>UpdateStatus(Guid orderId, UpdateOrderStatusRequestDto request)
         {
             var userId =User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))

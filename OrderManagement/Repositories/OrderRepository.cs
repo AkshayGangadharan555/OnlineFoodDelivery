@@ -1,3 +1,4 @@
+using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Orders.Constants;
@@ -28,59 +29,52 @@ namespace Orders.Repositories
         // CREATE ORDER
         public async Task<OrderResponseDto> CreateOrderAsync(PlaceOrderRequestDto request)
         {
-            using var connection =GetConnection();
+            using var connection = GetConnection();
             await connection.OpenAsync();
             using var transaction = connection.BeginTransaction();
             try
             {
-                Guid orderId;
+                // Create order using stored procedure
+                var orderId = await connection.QuerySingleAsync<Guid>(
+                    "sp_CreateOrder",
+                    new
+                    {
+                        request.CustomerId,
+                        request.RestaurantId,
+                        request.PaymentAddressId,
+                        request.DeliveryAddressId,
+                        TotalAmount = 0
+                    },
+                    transaction: transaction,
+                    commandType: CommandType.StoredProcedure
+                );
 
-                using (var command =new SqlCommand("sp_CreateOrder", connection, transaction))
+                // Prepare order items for bulk insertion
+                var orderItems = request.Items.Select(item => new
                 {
-                    command.CommandType =CommandType.StoredProcedure;
-                    command.Parameters.AddWithValue("@CustomerId", request.CustomerId);
-                    command.Parameters.AddWithValue("@RestaurantId", request.RestaurantId);
-                    command.Parameters.AddWithValue("@PaymentAddressId", request.PaymentAddressId);
-                    command.Parameters.AddWithValue("@DeliveryAddressId", request.DeliveryAddressId);
-                    command.Parameters.AddWithValue("@TotalAmount", 0);
-                    orderId =(Guid)await command.ExecuteScalarAsync();
-                }
+                    OrderId = orderId,
+                    item.ProductId,
+                    RestaurantId = request.RestaurantId,
+                    item.Quantity,
+                    item.SpecialInstructions
+                }).ToList();
 
-                var table =new DataTable();
-
-                table.Columns.Add("ProductId",typeof(Guid));
-                table.Columns.Add("RestaurantId",typeof(Guid));
-                table.Columns.Add("Quantity",typeof(int));
-                table.Columns.Add("SpecialInstructions",typeof(string));
-
-                foreach (var item in request.Items)
-                {
-                    table.Rows.Add(item.ProductId,request.RestaurantId,item.Quantity,item.SpecialInstructions);
-                }
-
-                using (var command =new SqlCommand("sp_InsertOrderItems",connection,transaction))
-                {
-                    command.CommandType =CommandType.StoredProcedure;
-
-                    command.Parameters.AddWithValue("@OrderId", orderId);
-
-                    var parameter =command.Parameters.AddWithValue("@Items",table);
-
-                    parameter.SqlDbType =SqlDbType.Structured;
-
-                    parameter.TypeName ="OrderItemTableType";
-
-                    await command.ExecuteNonQueryAsync();
-                }
+                // Bulk insert order items using stored procedure
+                await connection.ExecuteAsync(
+                    "sp_InsertOrderItems",
+                    new { OrderId = orderId, Items = orderItems.AsTableValuedParameter("OrderItemTableType") },
+                    transaction: transaction,
+                    commandType: CommandType.StoredProcedure
+                );
 
                 transaction.Commit();
 
                 return new OrderResponseDto
                 {
-                    OrderId =orderId,
-                    CustomerId =request.CustomerId,
-                    RestaurantId =request.RestaurantId,
-                    Status ="Pending"
+                    OrderId = orderId,
+                    CustomerId = request.CustomerId,
+                    RestaurantId = request.RestaurantId,
+                    Status = "Pending"
                 };
             }
             catch
